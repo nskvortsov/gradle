@@ -17,9 +17,11 @@
 package org.gradle.api.internal.artifacts.ivyservice;
 
 import org.apache.commons.lang.StringUtils;
+import org.apache.ivy.core.cache.DefaultRepositoryCacheManager;
 import org.apache.ivy.core.cache.RepositoryCacheManager;
 import org.apache.ivy.core.module.descriptor.ModuleDescriptor;
 import org.apache.ivy.core.settings.IvySettings;
+import org.apache.ivy.plugins.IvySettingsAware;
 import org.apache.ivy.plugins.matcher.PatternMatcher;
 import org.apache.ivy.plugins.repository.Repository;
 import org.apache.ivy.plugins.repository.TransferEvent;
@@ -87,7 +89,7 @@ public class DefaultSettingsConverter implements SettingsConverter {
     }
 
     public IvySettings convertForResolve(List<DependencyResolver> dependencyResolvers,
-                               File gradleUserHome, DependencyResolver internalRepository, Map<String, ModuleDescriptor> clientModuleRegistry) {
+                                         File gradleUserHome, DependencyResolver internalRepository, Map<String, ModuleDescriptor> clientModuleRegistry) {
         if (ivySettings != null) {
             return ivySettings;
         }
@@ -153,6 +155,7 @@ public class DefaultSettingsConverter implements SettingsConverter {
             repositoryCacheManager = new WharfCacheManager();
         }
         ivySettings.setDefaultRepositoryCacheManager(repositoryCacheManager);
+        ((IvySettingsAware) repositoryCacheManager).setSettings(ivySettings);
     }
 
     private void initializeResolvers(IvySettings ivySettings, List<DependencyResolver> allResolvers) {
