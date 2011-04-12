@@ -63,11 +63,10 @@ import org.gradle.util.ConfigureUtil
  *     javaVersion = '1.6'
  *
  *     //if you need to put provided dependencies on the classpath
- *     scopes.COMPILE.plus += configurations.provided
+ *     scopes.PROVIDED.plus += configurations.provided
  *
  *     //if 'content root' (as IDEA calls it) of the module is different
- *     moduleDir = file('my-module-content-root')
- *     //TODO SF: contentRoot
+ *     contentRoot = file('my-module-content-root')
  *
  *     //if you love browsing javadocs
  *     downloadJavadoc = true
@@ -154,7 +153,7 @@ class IdeaModule {
      *
      * idea {
      *   module {
-     *     scopes.COMPILE.plus += configurations.provided
+     *     scopes.PROVIDED.plus += configurations.provided
      *   }
      * }
      * </pre>
@@ -180,7 +179,7 @@ class IdeaModule {
      * <p>
      * For example see docs for {@link IdeaModule}
      */
-    File moduleDir
+    File contentRoot
 
     /**
      * The directories containing the test sources.
@@ -301,7 +300,7 @@ class IdeaModule {
     }
 
     protected Path getContentPath() {
-        path(getModuleDir())
+        path(getContentRoot())
     }
 
     protected def path(File dir) {
