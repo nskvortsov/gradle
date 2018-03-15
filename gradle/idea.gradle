@@ -1,5 +1,6 @@
 import org.jetbrains.gradle.ext.*
 import static org.jetbrains.gradle.ext.ForceBraces.*
+import org.gradle.gradlebuild.*
 
 buildscript {
     repositories {
@@ -18,7 +19,7 @@ allprojects { project ->
 
     idea {
         module {
-            def ideaLanguageLevel = (project in rootProject.findProperty('projectsRequiringJava8')) ? '1.8' : '1.6'
+            def ideaLanguageLevel = (project.name == "testingJunitPlatform") ? '1.8' : '1.6'
             // Force everything to Java 6, pending detangling some int test cycles or switching to project-per-source-set mapping
             languageLevel = new org.gradle.plugins.ide.idea.model.IdeaLanguageLevel(ideaLanguageLevel)
             targetBytecodeVersion = JavaVersion.toVersion(ideaLanguageLevel)
@@ -185,8 +186,8 @@ docsProject.afterEvaluate {
                 "-DintegTest.libsRepo=${rootProject.file('build/repo').absolutePath}",
                 "-Dorg.gradle.integtest.daemon.registry=${rootProject.file('build/daemon').absolutePath}",
                 "-DintegTest.distsDir=${rootProject.distsDir.absolutePath}",
-                "-Dorg.gradle.public.api.includes=${publicApiIncludes.join(':')}",
-                "-Dorg.gradle.public.api.excludes=${publicApiExcludes.join(':')}",
+                "-Dorg.gradle.public.api.includes=${PublicApi.INSTANCE.includes.join(':')}",
+                "-Dorg.gradle.public.api.excludes=${PublicApi.INSTANCE.excludes.join(':')}",
                 "-Dorg.gradle.integtest.executer=embedded",
                 "-Dorg.gradle.integtest.versions=latest",
                 "-Dorg.gradle.integtest.native.toolChains=default",
@@ -195,7 +196,7 @@ docsProject.afterEvaluate {
                 "-Xmx512m"
             ]
 
-            if (!javaVersion.java8Compatible) {
+            if (!BuildEnvironment.INSTANCE.javaVersion.java8Compatible) {
                 defaultTestVmParams += "-XX:MaxPermSize=512m"
             }
 

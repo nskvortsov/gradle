@@ -51,8 +51,9 @@ open class IdePlugin : Plugin<Project> {
     override fun apply(project: Project): Unit = project.run {
         configureExtensionForAllProjects()
         configureEclipseForAllProjects()
-        configureIdeaForAllProjects()
+/*      configureIdeaForAllProjects()
         configureIdeaForRootProject()
+*/
     }
 
     private
