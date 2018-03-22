@@ -34,6 +34,8 @@ import org.gradle.gradlebuild.BuildEnvironment.agentNum
 import org.gradle.gradlebuild.java.AvailableJavaInstallations
 import org.gradle.internal.jvm.Jvm
 import org.gradle.kotlin.dsl.*
+import org.gradle.plugins.ide.idea.IdeaPlugin
+import org.gradle.plugins.ide.idea.model.IdeaModel
 import org.gradle.process.CommandLineArgumentProvider
 import testLibraries
 import testLibrary
@@ -61,6 +63,7 @@ class UnitTestAndCompilePlugin : Plugin<Project> {
         configureCompile()
         configureJarTasks()
         configureTests()
+        configureIdes(extension)
     }
 
     private
@@ -161,6 +164,18 @@ class UnitTestAndCompilePlugin : Plugin<Project> {
             doFirst {
                 if (BuildEnvironment.isCiServer) {
                     println("maxParallelForks for '$path' is $maxParallelForks")
+                }
+            }
+        }
+    }
+
+    private
+    fun Project.configureIdes(gradlebuildJava: UnitTestAndCompileExtension) {
+        plugins.withType<IdeaPlugin> {
+            configure<IdeaModel> {
+                module {
+                    sourceDirs = sourceDirs + gradlebuildJava.generatedResourcesDir
+                    testSourceDirs = testSourceDirs + gradlebuildJava.generatedTestResourcesDir
                 }
             }
         }
