@@ -23,6 +23,7 @@ import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.XmlProvider
+import org.gradle.api.plugins.ExtensionAware
 import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.tasks.Copy
 import org.gradle.gradlebuild.BuildEnvironment
@@ -37,6 +38,14 @@ import org.gradle.plugins.ide.idea.model.IdeaLanguageLevel
 import org.gradle.plugins.ide.idea.model.IdeaModule
 import org.gradle.plugins.ide.idea.model.Module
 import org.gradle.plugins.ide.idea.model.ModuleLibrary
+import org.jetbrains.gradle.ext.IdeaExtPlugin
+import org.jetbrains.gradle.ext.ProjectSettings
+import org.jetbrains.gradle.ext.Application
+import org.jetbrains.gradle.ext.Remote
+import org.jetbrains.gradle.ext.JUnit
+import org.jetbrains.gradle.ext.Make
+import org.jetbrains.gradle.ext.RunConfigurationContainer
+import org.jetbrains.gradle.ext.ForceBraces.FORCE_BRACES_ALWAYS
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -96,6 +105,7 @@ open class IdePlugin : Plugin<Project> {
     fun Project.configureIdeaForAllProjects() = allprojects {
         apply {
             plugin("idea")
+            plugin(IdeaExtPlugin::class.java)
         }
         idea {
             module {
@@ -122,6 +132,146 @@ open class IdePlugin : Plugin<Project> {
             }
 
             project {
+                configure((this as ExtensionAware).extensions["settings"], closureOf<ProjectSettings> {
+
+                    compiler {
+                        processHeapSize = 2042
+                    }
+
+                    groovyCompiler {
+                        heapSize = 2000
+                        excludes {
+                            file("${rootProject.projectDir.absolutePath}/subprojects/plugins/src/test/groovy/org/gradle/api/internal/tasks/testing/junit/JUnitTestClassProcessorTest.groovy")
+                        }
+                    }
+
+                    copyright {
+                        useDefault = "ASL2"
+                        (profiles) {
+                            "ASL2" {
+                                notice =
+                                    """
+                                      | Copyright ${'$'}{today.year} the original author or authors.
+                                      |Licensed under the Apache License, Version 2.0 (the "License");
+                                      |you may not use this file except in compliance with the License.
+                                      |You may obtain a copy of the License at
+                                      |     http://www.apache.org/licenses/LICENSE-2.0
+                                      |Unless required by applicable law or agreed to in writing, software
+                                      |distributed under the License is distributed on an "AS IS" BASIS,
+                                      |WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+                                      |See the License for the specific language governing permissions and
+                                      |limitations under the License.
+                                      """.trimMargin()
+                                keyword = "Copyright"
+                            }
+                        }
+                    }
+
+                    (runConfigurations) {
+                        "Gradle"(Application::class) {
+                            mainClass = "org.gradle.debug.GradleRunConfiguration"
+                            workingDirectory = rootProject.projectDir.absolutePath
+                            moduleName = "integTest"
+                        }
+
+                        val gradleRunners = mapOf("Regenerate IDEA metadata" to "idea",
+                            "Regenerate Int Test Image" to "prepareVersionsInfo intTestImage publishLocalArchives")
+
+                        gradleRunners.forEach { runnerName, commandLine ->
+                            runnerName(Application::class) {
+                                mainClass = "org.gradle.testing.internal.util.GradlewRunner"
+                                programParameters = commandLine
+                                workingDirectory = rootProject.projectDir.absolutePath
+                                moduleName = "internalTesting"
+                                envs = mapOf("TERM" to "xterm")
+                                (beforeRun) {
+                                    "make"(Make::class) {
+                                        enabled = false
+                                    }
+                                }
+                            }
+                        }
+
+                        "Remote debug port 5005"(Remote::class) {
+                            mode = Remote.RemoteMode.ATTACH
+                            transport = Remote.RemoteTransport.SOCKET
+                            host = "localhost"
+                            port = 5005
+                        }
+                    }
+
+
+                    project("docs").afterEvaluate {
+                        val docsProject = this
+                        (runConfigurations as RunConfigurationContainer).defaults(JUnit::class.java) {
+
+                            val rootProject = docsProject.rootProject
+                            val releaseNotesMarkdown: PegDown by docsProject.tasks
+                            val releaseNotes: Copy by docsProject.tasks
+
+                            var defaultTestVmParams = listOf(
+                                "-ea",
+                                "-Dorg.gradle.docs.releasenotes.source=${releaseNotesMarkdown.markdownFile}",
+                                "-Dorg.gradle.docs.releasenotes.rendered=${releaseNotes.destinationDir.resolve(releaseNotes.property("fileName") as String)}",
+                                "-DintegTest.gradleHomeDir=\$MODULE_DIR\$/build/integ test",
+                                "-DintegTest.gradleUserHomeDir=${rootProject.file("intTestHomeDir").absolutePath}",
+                                "-DintegTest.libsRepo=${rootProject.file("build/repo").absolutePath}",
+                                "-Dorg.gradle.integtest.daemon.registry=${rootProject.file("build/daemon").absolutePath}",
+                                "-DintegTest.distsDir=${rootProject.base.distsDir.absolutePath}",
+                                "-Dorg.gradle.public.api.includes=${PublicApi.includes.joinToString(":")}",
+                                "-Dorg.gradle.public.api.excludes=${PublicApi.excludes.joinToString(":")}",
+                                "-Dorg.gradle.integtest.executer=embedded",
+                                "-Dorg.gradle.integtest.versions=latest",
+                                "-Dorg.gradle.integtest.native.toolChains=default",
+                                "-Dorg.gradle.integtest.multiversion=default",
+                                "-Dorg.gradle.integtest.testkit.compatibility=current",
+                                "-Xmx512m"
+                            )
+
+                            if (!BuildEnvironment.javaVersion.isJava8Compatible) {
+                                defaultTestVmParams += "-XX:MaxPermSize=512m"
+                            }
+
+                            vmParameters = defaultTestVmParams.map { if (it.contains(" ")) "\"$it\"" else it }.joinToString(" ")
+
+                            val lang = System.getenv("LANG") ?: "en_US.UTF-8"
+                            envs = mapOf("LANG" to lang)
+                        }
+                    }
+
+                    codeStyle {
+                        USE_SAME_INDENTS = true // deprecated!
+                        hardWrapAt = 200
+
+                        java {
+                            wrapCommentsAtRightMargin = true
+                            classCountToUseImportOnDemand = 999
+                            keepControlStatementInOneLine = false
+                            alignParameterDescriptions = false
+                            alignThrownExceptionDescriptions = false
+                            generatePTagOnEmptyLines = false
+                            keepEmptyParamTags = false
+                            keepEmptyThrowsTags = false
+                            keepEmptyReturnTags = false
+                            ifForceBraces = FORCE_BRACES_ALWAYS
+                            doWhileForceBraces = FORCE_BRACES_ALWAYS
+                            whileForceBraces = FORCE_BRACES_ALWAYS
+                            forForceBraces = FORCE_BRACES_ALWAYS
+                        }
+
+                        groovy {
+                            alignMultilineNamedArguments = false
+                            classCountToUseImportOnDemand = 999
+                            ifForceBraces = FORCE_BRACES_ALWAYS
+                            doWhileForceBraces = FORCE_BRACES_ALWAYS
+                            whileForceBraces = FORCE_BRACES_ALWAYS
+                            forForceBraces = FORCE_BRACES_ALWAYS
+                        }
+                    }
+
+                    doNotDetectFrameworks("android", "web")
+                })
+
                 wildcards.add("?*.gradle")
                 vcs = "Git"
                 ipr {
