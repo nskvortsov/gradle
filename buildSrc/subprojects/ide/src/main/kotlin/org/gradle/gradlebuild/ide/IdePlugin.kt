@@ -132,7 +132,7 @@ open class IdePlugin : Plugin<Project> {
             }
 
             project {
-                configure((this as ExtensionAware).extensions["settings"], closureOf<ProjectSettings> {
+                (this as ExtensionAware).configure<ProjectSettings> {
 
                     compiler {
                         processHeapSize = 2042
@@ -270,7 +270,7 @@ open class IdePlugin : Plugin<Project> {
                     }
 
                     doNotDetectFrameworks("android", "web")
-                })
+                }
 
                 wildcards.add("?*.gradle")
                 vcs = "Git"
