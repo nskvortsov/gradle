@@ -136,6 +136,9 @@ open class IdePlugin : Plugin<Project> {
 
                     compiler {
                         processHeapSize = 2042
+                        javac {
+                            preferTargetJDKCompiler = false
+                        }
                     }
 
                     groovyCompiler {
