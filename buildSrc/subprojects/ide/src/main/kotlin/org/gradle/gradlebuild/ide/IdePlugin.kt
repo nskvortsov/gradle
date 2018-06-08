@@ -64,6 +64,7 @@ open class IdePlugin : Plugin<Project> {
         configureEclipseForAllProjects()
         configureIdeaForAllProjects()
         configureIdeaForRootProject()
+        configureIdeaImport()
     }
 
     private
@@ -104,7 +105,6 @@ open class IdePlugin : Plugin<Project> {
     fun Project.configureIdeaForAllProjects() = allprojects {
         apply {
             plugin("idea")
-            plugin("org.jetbrains.gradle.plugin.idea-ext")
         }
         idea {
             module {
@@ -130,6 +130,61 @@ open class IdePlugin : Plugin<Project> {
                 excludeDirs = excludeDirs + rootExcludeDirs
             }
 
+            project {
+
+                wildcards.add("?*.gradle")
+                vcs = "Git"
+                ipr {
+                    withXml {
+                        withJsoup { document ->
+                            val projectElement = document.getElementsByTag("project").first()
+                            configureCompilerConfiguration(projectElement)
+                            configureCopyright(projectElement)
+
+                            // We are using an extension method instead of appending a fixed XML String,
+                            // since jsoup `append` method converts all xml tags to lower case.
+                            // In doing so, tags in the code style settings are ignored.
+                            projectElement.removeBySelector("component[name=ProjectCodeStyleConfiguration]")
+                                .configureCodeStyleSettings()
+
+                            configureFrameworkDetectionExcludes(projectElement)
+                            configureBuildSrc(projectElement)
+                        }
+                        // TODO replace this hack by trying out with kotlinx.dom
+                        val xmlStringBuilder = asString()
+                        val toReplace = "{newline}"
+                        var startIndex = xmlStringBuilder.indexOf(toReplace)
+                        while (startIndex > -1) {
+                            xmlStringBuilder.replace(startIndex, startIndex + toReplace.length, "&#10;")
+                            startIndex = xmlStringBuilder.indexOf(toReplace)
+                        }
+                    }
+                }
+                workspace {
+                    iws {
+                        withXml {
+                            withJsoup { document ->
+                                val projectElement = document.getElementsByTag("project").first()
+                                projectElement.createOrEmptyOutChildElement("CompilerWorkspaceConfiguration")
+                                    .option("COMPILER_PROCESS_HEAP_SIZE", "2048")
+                                val runManagerComponent = projectElement.select("component[name=RunManager]")
+                                    .first()
+                                configureJunitRunConfiguration(runManagerComponent)
+                                configureGradleRunConfigurations(runManagerComponent)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private
+    fun Project.configureIdeaImport() {
+        allprojects {
+            apply(plugin = "org.jetbrains.gradle.plugin.idea-ext")
+        }
+        idea {
             project {
                 settings {
 
@@ -272,50 +327,6 @@ open class IdePlugin : Plugin<Project> {
                     }
 
                     doNotDetectFrameworks("android", "web")
-                }
-
-                wildcards.add("?*.gradle")
-                vcs = "Git"
-                ipr {
-                    withXml {
-                        withJsoup { document ->
-                            val projectElement = document.getElementsByTag("project").first()
-                            configureCompilerConfiguration(projectElement)
-                            configureCopyright(projectElement)
-
-                            // We are using an extension method instead of appending a fixed XML String,
-                            // since jsoup `append` method converts all xml tags to lower case.
-                            // In doing so, tags in the code style settings are ignored.
-                            projectElement.removeBySelector("component[name=ProjectCodeStyleConfiguration]")
-                                .configureCodeStyleSettings()
-
-                            configureFrameworkDetectionExcludes(projectElement)
-                            configureBuildSrc(projectElement)
-                        }
-                        // TODO replace this hack by trying out with kotlinx.dom
-                        val xmlStringBuilder = asString()
-                        val toReplace = "{newline}"
-                        var startIndex = xmlStringBuilder.indexOf(toReplace)
-                        while (startIndex > -1) {
-                            xmlStringBuilder.replace(startIndex, startIndex + toReplace.length, "&#10;")
-                            startIndex = xmlStringBuilder.indexOf(toReplace)
-                        }
-                    }
-                }
-                workspace {
-                    iws {
-                        withXml {
-                            withJsoup { document ->
-                                val projectElement = document.getElementsByTag("project").first()
-                                projectElement.createOrEmptyOutChildElement("CompilerWorkspaceConfiguration")
-                                    .option("COMPILER_PROCESS_HEAP_SIZE", "2048")
-                                val runManagerComponent = projectElement.select("component[name=RunManager]")
-                                    .first()
-                                configureJunitRunConfiguration(runManagerComponent)
-                                configureGradleRunConfigurations(runManagerComponent)
-                            }
-                        }
-                    }
                 }
             }
         }
