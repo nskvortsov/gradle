@@ -36,15 +36,14 @@ import org.gradle.plugins.ide.eclipse.model.Classpath
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.gradle.plugins.ide.idea.model.IdeaLanguageLevel
 import org.gradle.plugins.ide.idea.model.IdeaModule
+import org.gradle.plugins.ide.idea.model.IdeaProject
 import org.gradle.plugins.ide.idea.model.Module
 import org.gradle.plugins.ide.idea.model.ModuleLibrary
-import org.jetbrains.gradle.ext.IdeaExtPlugin
 import org.jetbrains.gradle.ext.ProjectSettings
 import org.jetbrains.gradle.ext.Application
 import org.jetbrains.gradle.ext.Remote
 import org.jetbrains.gradle.ext.JUnit
 import org.jetbrains.gradle.ext.Make
-import org.jetbrains.gradle.ext.RunConfigurationContainer
 import org.jetbrains.gradle.ext.ForceBraces.FORCE_BRACES_ALWAYS
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
@@ -105,7 +104,7 @@ open class IdePlugin : Plugin<Project> {
     fun Project.configureIdeaForAllProjects() = allprojects {
         apply {
             plugin("idea")
-            plugin(IdeaExtPlugin::class.java)
+            plugin("org.jetbrains.gradle.plugin.idea-ext")
         }
         idea {
             module {
@@ -132,7 +131,7 @@ open class IdePlugin : Plugin<Project> {
             }
 
             project {
-                (this as ExtensionAware).configure<ProjectSettings> {
+                settings {
 
                     compiler {
                         processHeapSize = 2042
@@ -206,7 +205,7 @@ open class IdePlugin : Plugin<Project> {
 
                     project("docs").afterEvaluate {
                         val docsProject = this
-                        (runConfigurations as RunConfigurationContainer).defaults(JUnit::class.java) {
+                        runConfigurations.defaults(JUnit::class.java) {
 
                             val rootProject = docsProject.rootProject
                             val releaseNotesMarkdown: PegDown by docsProject.tasks
@@ -235,7 +234,7 @@ open class IdePlugin : Plugin<Project> {
                                 defaultTestVmParams += "-XX:MaxPermSize=512m"
                             }
 
-                            vmParameters = defaultTestVmParams.map { if (it.contains(" ")) "\"$it\"" else it }.joinToString(" ")
+                            vmParameters = defaultTestVmParams.joinToString(" ") { if (it.contains(" ")) "\"$it\"" else it }
 
                             val lang = System.getenv("LANG") ?: "en_US.UTF-8"
                             envs = mapOf("LANG" to lang)
@@ -681,3 +680,8 @@ fun Element.createOrEmptyOutChildElement(childName: String): Element {
 private
 fun Element.removeBySelector(selector: String): Element =
     apply { select(selector).remove() }
+
+
+private
+fun IdeaProject.settings(action: ProjectSettings.() -> Unit) =
+    (this as ExtensionAware).configure(action)
