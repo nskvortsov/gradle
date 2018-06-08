@@ -16,6 +16,7 @@
 package org.gradle.gradlebuild.unittestandcompile
 
 import accessors.base
+import accessors.idea
 import accessors.java
 import availableJavaInstallations
 import library
@@ -39,6 +40,7 @@ import org.gradle.gradlebuild.BuildEnvironment.agentNum
 import org.gradle.gradlebuild.java.AvailableJavaInstallations
 import org.gradle.internal.jvm.Jvm
 import org.gradle.kotlin.dsl.*
+import org.gradle.plugins.ide.idea.IdeaPlugin
 import org.gradle.process.CommandLineArgumentProvider
 import testLibraries
 import testLibrary
@@ -105,8 +107,18 @@ class UnitTestAndCompilePlugin : Plugin<Project> {
 
     private
     fun Project.addGeneratedResources(gradlebuildJava: UnitTestAndCompileExtension) {
+
         val classpathManifest = tasks.register("classpathManifest", ClasspathManifest::class.java)
         java.sourceSets["main"].output.dir(mapOf("builtBy" to classpathManifest), gradlebuildJava.generatedResourcesDir)
+
+        plugins.withType<IdeaPlugin> {
+            idea {
+                module {
+                    sourceDirs = sourceDirs + gradlebuildJava.generatedResourcesDir
+                    testSourceDirs = testSourceDirs + gradlebuildJava.generatedResourcesDir
+                }
+            }
+        }
     }
 
     private
