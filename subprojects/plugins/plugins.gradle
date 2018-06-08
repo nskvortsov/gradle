@@ -71,6 +71,14 @@ task wrapperJar(type: Copy) {
 }
 sourceSets.main.output.dir wrapperJarDir, builtBy: wrapperJar
 
+plugins.withType(IdeaPlugin) {
+    idea {
+        module {
+            sourceDirs = sourceDirs + wrapperJarDir
+        }
+    }
+}
+
 import org.gradle.gradlebuild.testing.integrationtests.cleanup.WhenNotEmpty
 testFilesCleanup {
     policy = WhenNotEmpty.REPORT
