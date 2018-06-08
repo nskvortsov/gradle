@@ -231,7 +231,7 @@ open class IdePlugin : Plugin<Project> {
                             moduleName = "integTest"
                         }
 
-                        val gradleRunners = mapOf("Regenerate IDEA metadata" to "idea",
+                        val gradleRunners = mapOf(
                             "Regenerate Int Test Image" to "prepareVersionsInfo intTestImage publishLocalArchives")
 
                         gradleRunners.forEach { runnerName, commandLine ->
