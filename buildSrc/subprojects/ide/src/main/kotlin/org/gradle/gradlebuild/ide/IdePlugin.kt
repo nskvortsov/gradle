@@ -21,6 +21,7 @@ import accessors.idea
 import org.gradle.api.Action
 import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
+import org.gradle.api.PolymorphicDomainObjectContainer
 import org.gradle.api.Project
 import org.gradle.api.XmlProvider
 import org.gradle.api.plugins.ExtensionAware
@@ -39,12 +40,18 @@ import org.gradle.plugins.ide.idea.model.IdeaModule
 import org.gradle.plugins.ide.idea.model.IdeaProject
 import org.gradle.plugins.ide.idea.model.Module
 import org.gradle.plugins.ide.idea.model.ModuleLibrary
-import org.jetbrains.gradle.ext.ProjectSettings
 import org.jetbrains.gradle.ext.Application
-import org.jetbrains.gradle.ext.Remote
+import org.jetbrains.gradle.ext.CodeStyleConfig
+import org.jetbrains.gradle.ext.CopyrightConfiguration
+import org.jetbrains.gradle.ext.ForceBraces.FORCE_BRACES_ALWAYS
+import org.jetbrains.gradle.ext.GroovyCompilerConfiguration
+import org.jetbrains.gradle.ext.IdeaCompilerConfiguration
 import org.jetbrains.gradle.ext.JUnit
 import org.jetbrains.gradle.ext.Make
-import org.jetbrains.gradle.ext.ForceBraces.FORCE_BRACES_ALWAYS
+import org.jetbrains.gradle.ext.ProjectSettings
+import org.jetbrains.gradle.ext.Remote
+import org.jetbrains.gradle.ext.RunConfiguration
+import org.jetbrains.gradle.ext.RunConfigurationContainer
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -187,22 +194,20 @@ open class IdePlugin : Plugin<Project> {
         idea {
             project {
                 settings {
-
-                    compiler {
+                    this.configExt<IdeaCompilerConfiguration> {
                         processHeapSize = 2042
                         javac {
                             preferTargetJDKCompiler = false
                         }
                     }
 
-                    groovyCompiler {
-                        heapSize = 2000
+                    this.configExt<GroovyCompilerConfiguration> {
                         excludes {
                             file("${rootProject.projectDir.absolutePath}/subprojects/plugins/src/test/groovy/org/gradle/api/internal/tasks/testing/junit/JUnitTestClassProcessorTest.groovy")
                         }
                     }
 
-                    copyright {
+                    this.configExt<CopyrightConfiguration> {
                         useDefault = "ASL2"
                         (profiles) {
                             "ASL2" {
@@ -224,7 +229,8 @@ open class IdePlugin : Plugin<Project> {
                         }
                     }
 
-                    (runConfigurations) {
+                    (this.configExt<RunConfigurationContainer>("runConfigurations")
+                        as PolymorphicDomainObjectContainer<RunConfiguration>) {
                         "Gradle"(Application::class) {
                             mainClass = "org.gradle.debug.GradleRunConfiguration"
                             workingDirectory = rootProject.projectDir.absolutePath
@@ -260,43 +266,45 @@ open class IdePlugin : Plugin<Project> {
 
                     project("docs").afterEvaluate {
                         val docsProject = this
-                        runConfigurations.defaults(JUnit::class.java) {
+                        this.configExt<RunConfigurationContainer>("runConfigurations") {
+                            defaults(JUnit::class.java) {
 
-                            val rootProject = docsProject.rootProject
-                            val releaseNotesMarkdown: PegDown by docsProject.tasks
-                            val releaseNotes: Copy by docsProject.tasks
+                                val rootProject = docsProject.rootProject
+                                val releaseNotesMarkdown: PegDown by docsProject.tasks
+                                val releaseNotes: Copy by docsProject.tasks
 
-                            var defaultTestVmParams = listOf(
-                                "-ea",
-                                "-Dorg.gradle.docs.releasenotes.source=${releaseNotesMarkdown.markdownFile}",
-                                "-Dorg.gradle.docs.releasenotes.rendered=${releaseNotes.destinationDir.resolve(releaseNotes.property("fileName") as String)}",
-                                "-DintegTest.gradleHomeDir=build/integ test",
-                                "-DintegTest.gradleUserHomeDir=${rootProject.file("intTestHomeDir").absolutePath}",
-                                "-DintegTest.libsRepo=${rootProject.file("build/repo").absolutePath}",
-                                "-Dorg.gradle.integtest.daemon.registry=${rootProject.file("build/daemon").absolutePath}",
-                                "-DintegTest.distsDir=${rootProject.base.distsDir.absolutePath}",
-                                "-Dorg.gradle.public.api.includes=${PublicApi.includes.joinToString(":")}",
-                                "-Dorg.gradle.public.api.excludes=${PublicApi.excludes.joinToString(":")}",
-                                "-Dorg.gradle.integtest.executer=embedded",
-                                "-Dorg.gradle.integtest.versions=latest",
-                                "-Dorg.gradle.integtest.native.toolChains=default",
-                                "-Dorg.gradle.integtest.multiversion=default",
-                                "-Dorg.gradle.integtest.testkit.compatibility=current",
-                                "-Xmx512m"
-                            )
+                                var defaultTestVmParams = listOf(
+                                    "-ea",
+                                    "-Dorg.gradle.docs.releasenotes.source=${releaseNotesMarkdown.markdownFile}",
+                                    "-Dorg.gradle.docs.releasenotes.rendered=${releaseNotes.destinationDir.resolve(releaseNotes.property("fileName") as String)}",
+                                    "-DintegTest.gradleHomeDir=build/integ test",
+                                    "-DintegTest.gradleUserHomeDir=${rootProject.file("intTestHomeDir").absolutePath}",
+                                    "-DintegTest.libsRepo=${rootProject.file("build/repo").absolutePath}",
+                                    "-Dorg.gradle.integtest.daemon.registry=${rootProject.file("build/daemon").absolutePath}",
+                                    "-DintegTest.distsDir=${rootProject.base.distsDir.absolutePath}",
+                                    "-Dorg.gradle.public.api.includes=${PublicApi.includes.joinToString(":")}",
+                                    "-Dorg.gradle.public.api.excludes=${PublicApi.excludes.joinToString(":")}",
+                                    "-Dorg.gradle.integtest.executer=embedded",
+                                    "-Dorg.gradle.integtest.versions=latest",
+                                    "-Dorg.gradle.integtest.native.toolChains=default",
+                                    "-Dorg.gradle.integtest.multiversion=default",
+                                    "-Dorg.gradle.integtest.testkit.compatibility=current",
+                                    "-Xmx512m"
+                                )
 
-                            if (!BuildEnvironment.javaVersion.isJava8Compatible) {
-                                defaultTestVmParams += "-XX:MaxPermSize=512m"
+                                if (!BuildEnvironment.javaVersion.isJava8Compatible) {
+                                    defaultTestVmParams += "-XX:MaxPermSize=512m"
+                                }
+
+                                vmParameters = defaultTestVmParams.joinToString(" ") { if (it.contains(" ")) "\"$it\"" else it }
+
+                                val lang = System.getenv("LANG") ?: "en_US.UTF-8"
+                                envs = mapOf("LANG" to lang)
                             }
-
-                            vmParameters = defaultTestVmParams.joinToString(" ") { if (it.contains(" ")) "\"$it\"" else it }
-
-                            val lang = System.getenv("LANG") ?: "en_US.UTF-8"
-                            envs = mapOf("LANG" to lang)
                         }
                     }
 
-                    codeStyle {
+                    this.configExt<CodeStyleConfig> {
                         USE_SAME_INDENTS = true // deprecated!
                         hardWrapAt = 200
 
@@ -696,3 +704,16 @@ fun Element.removeBySelector(selector: String): Element =
 private
 fun IdeaProject.settings(action: ProjectSettings.() -> Unit) =
     (this as ExtensionAware).configure(action)
+
+
+private
+inline fun <reified T : Any> Any.configExt(name: String? = null, action: T.() -> Unit = {}): T? {
+    val extensionsContainer = (this as? ExtensionAware)?.extensions ?: return null
+    val extension = if (name != null) {
+        extensionsContainer.findByName(name) as? T
+    } else {
+        extensionsContainer.findByType(typeOf<T>())
+    }
+    extension?.action()
+    return extension
+}
